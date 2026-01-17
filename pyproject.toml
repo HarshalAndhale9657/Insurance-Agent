@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "insurance-agent"
+version = "0.1.0"
+description = "A RAG-based Insurance Agent application"
+authors = [
+  { name = "User", email = "user@example.com" },
+]
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "streamlit>=1.30.0",
+    "langchain==0.2.16",
+    "langchain-community==0.2.16",
+    "langchain-core==0.2.38",
+    "langchain-text-splitters==0.2.2",
+    "openai>=1.0.0",
+    "langchain-groq",
+    "sentence-transformers>=2.2.0",
+    "pypdf>=3.17.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+    "chromadb>=0.4.0",
+    "tiktoken>=0.5.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+    "python-multipart>=0.0.6",
+    "twilio>=8.0.0",
+    "requests>=2.31.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/example/insurance-agent"
+"Bug Tracker" = "https://github.com/example/insurance-agent/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+exclude = ["chroma_db*", "tests*"]
+namespaces = false
