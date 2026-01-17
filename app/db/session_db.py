@@ -55,3 +55,22 @@ def update_session(user_id: str, step: str, data: Dict[str, Any]):
     """, (user_id, step, json.dumps(data)))
     conn.commit()
     conn.close()
+
+def get_all_sessions() -> list[Dict[str, Any]]:
+    """
+    Retrieve all sessions for the admin dashboard.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, step, data FROM sessions")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    results = []
+    for row in rows:
+        results.append({
+            "user_id": row[0],
+            "step": row[1],
+            "data": json.loads(row[2])
+        })
+    return results

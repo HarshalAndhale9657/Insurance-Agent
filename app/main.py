@@ -14,6 +14,9 @@ except ImportError as e:
     st.error(f"Failed to import RAG modules: {e}")
     st.stop()
 
+# Import Admin DB
+from app.db.session_db import get_all_sessions
+
 def main():
     st.set_page_config(page_title="Insurance Agent", page_icon="🛡️", layout="wide")
 
@@ -39,6 +42,75 @@ def main():
     </style>
     """, unsafe_allow_html=True)
 
+    # --- Sidebar Navigation ---
+    with st.sidebar:
+        st.title("🛡️ Insurance Agent")
+        page = st.radio("Navigate", ["🤖 Virtual Agent", "📊 Admin Dashboard"])
+        st.divider()
+
+    if page == "🤖 Virtual Agent":
+        show_chat_interface()
+    else:
+        show_admin_dashboard()
+
+def show_admin_dashboard():
+    st.title("📊 Admin Dashboard - Rural Leads")
+    
+    # metrics
+    sessions = get_all_sessions()
+    
+    # Process Data
+    import pandas as pd
+    
+    data_list = []
+    for s in sessions:
+        user_data = s["data"]
+        # Only interested in people who started the survey
+        if not user_data:
+            continue
+            
+        row = {
+            "User ID": s["user_id"],
+            "Status": s["step"],
+            "Name": user_data.get("name", "N/A"),
+            "Age": user_data.get("age", "N/A"),
+            "Occupation": user_data.get("occupation", "N/A"),
+            "Family": user_data.get("family", "N/A"),
+            "Worry": user_data.get("worry", "N/A"),
+            "Recommendation": user_data.get("recommendation", "Pending")
+        }
+        data_list.append(row)
+        
+    if not data_list:
+        st.info("No survey data available yet.")
+        return
+
+    df = pd.DataFrame(data_list)
+    
+    # Metrics
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Leads", len(df))
+    col2.metric("Completed Surveys", len(df[df["Status"] == "completed"]))
+    
+    if "Occupation" in df.columns:
+        top_occupation = df["Occupation"].mode()
+        if not top_occupation.empty:
+            col3.metric("Top Occupation", top_occupation[0])
+
+    st.divider()
+    
+    st.subheader("📋 Recent Leads")
+    st.dataframe(df, use_container_width=True)
+    
+    st.divider()
+    st.download_button(
+        label="Download Leads CSV",
+        data=df.to_csv(index=False).encode('utf-8'),
+        file_name='rural_leads.csv',
+        mime='text/csv',
+    )
+
+def show_chat_interface():
     st.title("Insurance Agent AI 🛡️")
     st.write("Current LLM: **Groq (Qwen 2.5)** | Embeddings: **HuggingFace**")
 
