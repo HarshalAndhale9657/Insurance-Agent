@@ -18,6 +18,12 @@ load_dotenv()
 
 app = FastAPI()
 
+from fastapi.staticfiles import StaticFiles
+# Mount static directory
+static_dir = os.path.join(os.path.dirname(__file__), "../static")
+os.makedirs(static_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
 @app.on_event("startup")
 def startup_event():
     init_db()
@@ -42,7 +48,7 @@ def send_whatsapp_message(to_number: str, body_text: str):
     except Exception as e:
         print(f"❌ Error sending async message: {e}")
 
-def process_background_message(sender_id: str, final_text: str, media_url: str, media_type: str):
+async def process_background_message(sender_id: str, final_text: str, media_url: str, media_type: str):
     """
     Background task to process the message and send a reply via Twilio API.
     """
@@ -114,19 +120,44 @@ def process_background_message(sender_id: str, final_text: str, media_url: str, 
     # 5. Process (Survey or RAG)
     response_text_to_send = None
 
+    # Flag to track if we should generate PDF
+    should_generate_pdf = False
+
     # Check Survey State
     if session["step"] != "completed":
-        survey_response_en = process_survey(sender_id, english_text) 
-        if survey_response_en:
-            response_text_to_send = translate_to_user_lang(survey_response_en, user_lang)
+        # Pass current session to avoid double DB read (optimization)
+        survey_result = process_survey(sender_id, english_text, current_session=session)
+        
+        if survey_result:
+            survey_response_en = survey_result.get("response")
+            # CRITICAL FIX: Update local session state immediately
+            if survey_result.get("next_step"):
+                session["step"] = survey_result["next_step"]
+                
+                # Check if we JUST completed the survey
+                if session["step"] == "completed":
+                    should_generate_pdf = True
+                    
+            if survey_result.get("data"):
+                session["data"] = survey_result["data"]
+                # Update local session_data reference too
+                session_data = session["data"]
+            
+            if survey_response_en:
+                response_text_to_send = translate_to_user_lang(survey_response_en, user_lang)
 
     # Fallback to RAG
     if not response_text_to_send:
         # Check reset
         if "survey" in english_text.lower():
-            session["step"] = "welcome"
-            survey_intro_en = process_survey(sender_id, "") 
-            response_text_to_send = translate_to_user_lang(survey_intro_en, user_lang)
+            # Reset logic via survey agent
+            survey_result = process_survey(sender_id, "reset", current_session=session)
+            if survey_result:
+                session["step"] = survey_result["next_step"]
+                session_data = survey_result["data"]
+                session["data"] = session_data
+                survey_intro_en = survey_result.get("response")
+                response_text_to_send = translate_to_user_lang(survey_intro_en, user_lang)
         else:
             # RAG Query
             print(f"🔍 Querying RAG with: {english_text}") 
@@ -149,15 +180,86 @@ def process_background_message(sender_id: str, final_text: str, media_url: str, 
                 response_text_to_send = "I encountered an error looking that up."
 
     # 6. Send Response
+    irda_disclaimer = "\n\n_(IRDAI: Insurance is subject to market risk. Read strictly.)_"
+    
     if response_text_to_send:
-        send_whatsapp_message(sender_id, response_text_to_send)
+        # Check if we should reply with Voice (if input was audio)
+        should_send_voice = False
+        if media_url and "audio" in media_type:
+            should_send_voice = True
+
+        # Send Text/Voice
+        if should_send_voice:
+            print("🎙️ Generating Audio Reply (EdgeTTS)...")
+            from app.services.voice_service import text_to_speech
+            
+            clean_text = response_text_to_send.replace("*", "")
+            audio_path = await text_to_speech(clean_text, user_lang)
+            
+            if audio_path:
+                filename = os.path.basename(audio_path)
+                ngrok_url = os.getenv("NGROK_URL")
+                
+                if ngrok_url:
+                    media_url = f"{ngrok_url}/static/voice_cache/{filename}"
+                    try:
+                        account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+                        auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+                        client = Client(account_sid, auth_token)
+                        client.messages.create(
+                            from_="whatsapp:+14155238886",
+                            to=sender_id,
+                            media_url=[media_url]
+                        )
+                    except Exception as e:
+                        print(f"❌ Twilio Audio Error: {e}")
+                        send_whatsapp_message(sender_id, response_text_to_send + irda_disclaimer)
+                else:
+                    send_whatsapp_message(sender_id, response_text_to_send + irda_disclaimer)
+            else:
+                send_whatsapp_message(sender_id, response_text_to_send + irda_disclaimer)
+        else:
+            send_whatsapp_message(sender_id, response_text_to_send + irda_disclaimer)
+            
+        # Enterprise Feature: PDF Roadmap
+        if should_generate_pdf and session_data.get("recommendation"):
+             try:
+                 from app.services.report_service import generate_pdf_report
+                 print("📄 Generating Enterprise PDF Report...")
+                 pdf_filename = f"Roadmap_{sender_id}_{uuid.uuid4().hex[:6]}.pdf"
+                 pdf_path = generate_pdf_report(session_data, session_data["recommendation"], pdf_filename)
+                 
+                 ngrok_url = os.getenv("NGROK_URL")
+                 if ngrok_url:
+                     pdf_url = f"{ngrok_url}/static/reports/{pdf_filename}"
+                     
+                     # Send as Media Attachment
+                     try:
+                        account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+                        auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+                        client = Client(account_sid, auth_token)
+                        
+                        client.messages.create(
+                            from_="whatsapp:+14155238886",
+                            to=sender_id,
+                            media_url=[pdf_url],
+                            body="📥 *Here is your Personal Insurance Roadmap*"
+                        )
+                        print(f"✅ PDF Sent as Attachment: {pdf_url}")
+                     except Exception as e:
+                        print(f"❌ Twilio PDF Error: {e}")
+                        # Fallback to link if attachment fails
+                        send_whatsapp_message(sender_id, f"📥 *Download Your Roadmap*:\n{pdf_url}")
+
+             except Exception as e:
+                 print(f"❌ PDF Gen Error: {e}")
 
     # 7. Persist Session
     update_session(sender_id, session["step"], session_data)
 
 
 @app.post("/webhook")
-def whatsapp_webhook(
+async def whatsapp_webhook(
     background_tasks: BackgroundTasks,
     From: str = Form(...),
     Body: str = Form(default=""),

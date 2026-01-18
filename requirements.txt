@@ -18,3 +18,5 @@ python-multipart>=0.0.6
 twilio>=8.0.0
 requests>=2.31.0
 pandas
+edge-tts>=6.1.9
+aiofiles>=23.2.1

@@ -1,41 +1,26 @@
+
 import sys
 import os
-import time
+from dotenv import load_dotenv
 
-# Add project root to sys.path
+# Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+load_dotenv()
 
-from app.agents.survey_agent import process_survey, get_session, update_session
+from app.services.voice_service import text_to_speech
 
-def test_natural_language_age():
-    user_id = "test_voice_user"
+def test_voice_gen():
+    print("🎙️ Testing Voice Generation (TTS)...")
     
-    # 1. Start survey and get to Age question here
-    update_session(user_id, "ask_name", {})
-    process_survey(user_id, "MyName") # Advances to ask_age
+    text = "Hello! I am your Insurance Agent. How can I assist you today?"
     
-    print("Testing Natural Language Input for Age...")
+    output_path = text_to_speech(text)
     
-    # 2. Simulate voice input "I am 45 years old"
-    input_text = "I am 45 years old"
-    resp = process_survey(user_id, input_text)
-    
-    session = get_session(user_id)
-    saved_age = session["data"].get("age")
-    
-    print(f"Input: '{input_text}'")
-    print(f"Response: {resp}")
-    print(f"Saved Age: {saved_age}")
-    
-    if saved_age == "45":
-        print("✅ Natural Language Age Test Passed")
+    if output_path and os.path.exists(output_path):
+        print(f"✅ Success: Audio generated at: {output_path}")
+        print(f"   Size: {os.path.getsize(output_path)} bytes")
     else:
-        print("❌ Natural Language Age Test Failed")
+        print("❌ Failure: Audio file was not created.")
 
 if __name__ == "__main__":
-    try:
-        from app.db.session_db import init_db
-        init_db()
-        test_natural_language_age()
-    except Exception as e:
-        print(f"❌ Verification failed with error: {e}")
+    test_voice_gen()
