@@ -5,6 +5,8 @@ langchain-community==0.2.16
 langchain-core==0.2.38
 langchain-text-splitters==0.2.2
 langchain-groq
+langchain-google-genai<2.0.0
+
 openai>=1.0.0
 sentence-transformers>=2.2.0
 pypdf>=3.17.0
@@ -20,3 +22,4 @@ requests>=2.31.0
 pandas
 edge-tts>=6.1.9
 aiofiles>=23.2.1
+reportlab>=4.0.0

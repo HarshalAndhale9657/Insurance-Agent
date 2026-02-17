@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 # Import services
 from app.services.voice_service import transcribe_audio, text_to_speech
 from app.services.query_service import query_agent
-from app.agents.survey_agent import process_survey, get_session
+from app.agents.survey_agent import process_survey, get_session, get_step_prompt
 from app.db.session_db import init_db, update_session
 from app.services.translation_service import detect_language, translate_to_english, translate_to_user_lang
 
@@ -16,7 +16,7 @@ class AgentService:
         # Ensure DB is initialized
         init_db()
 
-    async def process_message(self, session_id: str, text: str = None, audio_url: str = None, audio_type: str = None) -> Dict[str, Any]:
+    async def process_message(self, session_id: str, text: str = None, audio_url: str = None, audio_type: str = None, tts_enabled: bool = False) -> Dict[str, Any]:
         """
         Core logic to process a user message (Text or Audio).
         Returns a dict with: 'response_text', 'audio_path' (optional), 'sources' (optional), 'media_url' (optional)
@@ -82,44 +82,72 @@ class AgentService:
         session_data = session["data"]
 
         # 3. Detect Language
-        user_lang = session_data.get("language", "en") 
-        detected_lang = detect_language(final_text)
+        detected_lang = "en" 
+        response_text_to_send = None # Initialize to avoid UnboundLocalError 
         
-        if detected_lang != "en":
-            user_lang = detected_lang
-            session_data["language"] = user_lang
-        elif len(final_text.split()) > 2:
-            user_lang = detected_lang
-            session_data["language"] = user_lang
+        # Check for explicit language requests (High Priority Override)
+        text_lower = final_text.lower()
+        explicit_lang = None
+        
+        if "english" in text_lower:
+             explicit_lang = "en"
+        elif "hindi" in text_lower or "हिंदी" in text_lower:
+             explicit_lang = "hi"
+        elif "marathi" in text_lower or "मराठी" in text_lower:
+             explicit_lang = "mr"
+             
+        if explicit_lang:
+            user_lang = explicit_lang
+            session_data["language"] = explicit_lang
+            print(f"🔄 Explicit Language Switch: {explicit_lang}")
+            
+            # Don't process this text as an answer. Re-prompt current step.
+            current_prompt_en = get_step_prompt(session["step"])
+            response_text_to_send = translate_to_user_lang(current_prompt_en, user_lang)
+            # Prepend confirmation?
+            # response_text_to_send = f"(Language switched to {user_lang})\n\n{response_text_to_send}"
+        else:
+            # Fallback to Sticky / Auto-detect
+            if "language" not in session_data:
+                detected_lang = detect_language(final_text)
+                if detected_lang != "en" or len(final_text.split()) > 2:
+                     session_data["language"] = detected_lang
+                     user_lang = detected_lang
+                else:
+                     user_lang = "en" # Default to En
+            else:
+                user_lang = session_data["language"]
 
-        print(f"🌐 Language: {user_lang} (Detected: {detected_lang})")
+        print(f"🌐 Language: {user_lang} (Explicit: {explicit_lang}, Detected: {detected_lang})")
 
         # 4. Translate to English
         english_text = translate_to_english(final_text, user_lang)
         print(f"🔤 English Input: {english_text}")
 
         # 5. Process (Survey or RAG)
-        response_text_to_send = None
+        response_text_to_send = response_text_to_send # Carry over if set
         sources = []
         should_generate_pdf = False
 
-        # Check Survey State
-        if session["step"] != "completed":
-            survey_result = process_survey(session_id, english_text, current_session=session)
-            
-            if survey_result:
-                survey_response_en = survey_result.get("response")
-                if survey_result.get("next_step"):
-                    session["step"] = survey_result["next_step"]
-                    if session["step"] == "completed":
-                        should_generate_pdf = True
-                        
-                if survey_result.get("data"):
-                    session["data"] = survey_result["data"]
-                    session_data = session["data"]
+        # Only process survey logic if we haven't already handled an explicit command
+        if not response_text_to_send:
+            # Check Survey State
+            if session["step"] != "completed":
+                survey_result = process_survey(session_id, english_text, current_session=session)
                 
-                if survey_response_en:
-                    response_text_to_send = translate_to_user_lang(survey_response_en, user_lang)
+                if survey_result:
+                    survey_response_en = survey_result.get("response")
+                    if survey_result.get("next_step"):
+                        session["step"] = survey_result["next_step"]
+                        if session["step"] == "completed":
+                             should_generate_pdf = True
+                            
+                    if survey_result.get("data"):
+                        session["data"] = survey_result["data"]
+                        session_data = session["data"]
+                    
+                    if survey_response_en:
+                        response_text_to_send = translate_to_user_lang(survey_response_en, user_lang)
 
         # Fallback to RAG
         if not response_text_to_send:
@@ -186,21 +214,26 @@ class AgentService:
              except Exception as e:
                  print(f"❌ PDF Gen Error: {e}")
 
-        # Voice Reply (if input was audio)
-        if audio_url and "audio" in audio_type:
+        # Voice Reply (if input was audio OR tts_enabled is True)
+        if (audio_url and "audio" in audio_type) or tts_enabled:
             print("🎙️ Generating Audio Reply (EdgeTTS)...")
             clean_text = full_response_text.replace("*", "")
-            audio_path = await text_to_speech(clean_text, user_lang)
-            
-            if audio_path:
-                filename = os.path.basename(audio_path)
-                ngrok_url = os.getenv("NGROK_URL")
-                if ngrok_url:
-                    # Return URL for Twilio/Web
-                    result["audio_url"] = f"{ngrok_url}/static/voice_cache/{filename}"
-                else:
-                    # Fallback to local path if no ngrok (for local web testing)
-                    result["audio_path"] = audio_path 
+            try:
+                audio_path = await text_to_speech(clean_text, user_lang)
+                
+                if audio_path:
+                    filename = os.path.basename(audio_path)
+                    ngrok_url = os.getenv("NGROK_URL")
+                    if ngrok_url:
+                        # Return URL for Twilio/Web
+                        result["audio_url"] = f"{ngrok_url}/static/voice_cache/{filename}"
+                    else:
+                        # Fallback to local path if no ngrok (for local web testing)
+                        # Construct a localhost URL for the frontend
+                        result["audio_url"] = f"http://localhost:8000/static/voice_cache/{filename}"
+                        result["audio_path"] = audio_path 
+            except Exception as e:
+                print(f"❌ TTS Error: {e}") 
 
         # 7. Persist Session
         update_session(session_id, session["step"], session["data"])

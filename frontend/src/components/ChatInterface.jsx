@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 
 const API_URL = 'http://localhost:8000/api';
 
-const ChatInterface = ({ language }) => {
+const ChatInterface = ({ language, voiceEnabled }) => {
     const [messages, setMessages] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [sessionId, setSessionId] = useState('');
@@ -72,7 +72,8 @@ const ChatInterface = ({ language }) => {
                 // Text Message
                 response = await axios.post(`${API_URL}/chat`, {
                     session_id: sessionId,
-                    message: text
+                    message: text,
+                    tts_enabled: voiceEnabled
                 });
             }
 

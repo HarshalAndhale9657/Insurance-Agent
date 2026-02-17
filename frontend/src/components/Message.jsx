@@ -20,7 +20,7 @@ const Message = ({ message }) => {
                 {/* Audio Player */}
                 {message.audioUrl && (isBot || message.sender === 'bot') && (
                     <div className="audio-player">
-                        <audio controls src={message.audioUrl} style={{ width: '100%', height: '30px' }} />
+                        <audio controls preload="metadata" src={message.audioUrl} style={{ width: '100%', height: '30px' }} />
                     </div>
                 )}
 

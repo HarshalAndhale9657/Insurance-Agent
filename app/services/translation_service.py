@@ -57,9 +57,10 @@ def translate_to_user_lang(text: str, target_lang: str) -> str:
     prompt = ChatPromptTemplate.from_template(
         "Translate this English text to {target_lang}. "
         "IMPORTANT rules:\n"
-        "1. PRESERVE all formatting like *bold* stars and emojis.\n"
-        "2. Keep the tone professional, polite, and empathetic (use 'ji' or equivalent honorifics).\n"
-        "3. Do not translate technical terms like 'Premium' completely if they are commonly used, but you can transliterate them.\n"
+        "1. Return ONLY the direct translation.\n"
+        "2. Do NOT add any explanations, extra context, definitions, or conversational fillers.\n"
+        "3. PRESERVE all formatting like *bold* stars and emojis.\n"
+        "4. Do not translate technical terms like 'Premium' if commonly used.\n"
         "Text: {text}"
     )
     chain = prompt | llm

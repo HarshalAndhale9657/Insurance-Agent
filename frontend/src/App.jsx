@@ -13,9 +13,11 @@ import SupportPage from './pages/SupportPage';
 import DocumentsPage from './pages/DocumentsPage';
 import RoadmapPage from './pages/RoadmapPage';
 import SettingsPage from './pages/SettingsPage';
+import ProfilePage from './pages/ProfilePage';
 
 const MainApp = () => {
   const [language, setLanguage] = useState('en'); // 'en', 'hi', 'mr'
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const navigate = useNavigate();
 
   return (
@@ -34,7 +36,7 @@ const MainApp = () => {
         />
         <Route
           path="/chat"
-          element={<ChatInterface language={language} />}
+          element={<ChatInterface language={language} voiceEnabled={voiceEnabled} />}
         />
         <Route path="/login" element={<AuthPage />} />
         <Route path="/education" element={<EducationPage language={language} />} />
@@ -44,7 +46,8 @@ const MainApp = () => {
         <Route path="/support" element={<SupportPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/roadmap" element={<RoadmapPage />} />
-        <Route path="/settings" element={<SettingsPage language={language} setLanguage={setLanguage} />} />
+        <Route path="/settings" element={<SettingsPage language={language} setLanguage={setLanguage} voiceEnabled={voiceEnabled} setVoiceEnabled={setVoiceEnabled} />} />
+        <Route path="/profile" element={<ProfilePage />} />
       </Routes>
       <Footer />
     </div>

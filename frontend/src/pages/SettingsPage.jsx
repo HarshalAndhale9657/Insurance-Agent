@@ -1,8 +1,7 @@
 import React from 'react';
 import { Volume2, VolumeX, Globe, Bell } from 'lucide-react';
 
-const SettingsPage = ({ language, setLanguage }) => {
-    const [voiceEnabled, setVoiceEnabled] = React.useState(true);
+const SettingsPage = ({ language, setLanguage, voiceEnabled, setVoiceEnabled }) => {
     const [notifications, setNotifications] = React.useState(true);
 
     return (

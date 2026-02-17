@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
@@ -10,15 +10,15 @@ load_dotenv()
 
 def get_llm():
     """
-    Returns the ChatGroq LLM instance.
+    Returns the Google Gemini LLM instance.
     """
-    api_key = os.getenv("GROQ_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        raise ValueError("GROQ_API_KEY not found in environment variables.")
+        raise ValueError("GOOGLE_API_KEY not found in environment variables.")
     
-    return ChatGroq(
-        groq_api_key=api_key,
-        model_name="llama-3.3-70b-versatile",
+    return ChatGoogleGenerativeAI(
+        google_api_key=api_key,
+        model="gemini-1.5-flash",
         temperature=0.3
     )
 

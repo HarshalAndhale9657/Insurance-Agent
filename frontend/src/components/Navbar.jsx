@@ -117,12 +117,12 @@ const Navbar = ({ language, setLanguage }) => {
                     </button>
 
                     {showProfileMenu && (
-                        <div className="language-dropdown" style={{ width: '200px' }}>
+                        <div className="language-dropdown">
                             <div className="menu-header" style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0' }}>
                                 <strong>User Profile</strong>
                                 <div style={{ fontSize: '0.8rem', color: '#64748b' }}>user@example.com</div>
                             </div>
-                            <Link to="/details" className="lang-option" onClick={() => setShowProfileMenu(false)}>My Profile</Link>
+                            <Link to="/profile" className="lang-option" onClick={() => setShowProfileMenu(false)}>My Profile</Link>
                             <Link to="/documents" className="lang-option" onClick={() => setShowProfileMenu(false)}>Documents Vault</Link>
                             <Link to="/roadmap" className="lang-option" onClick={() => setShowProfileMenu(false)}>Insurance Roadmap</Link>
                             <Link to="/settings" className="lang-option" onClick={() => setShowProfileMenu(false)}>Settings</Link>

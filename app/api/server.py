@@ -41,6 +41,7 @@ agent_service = AgentService()
 class ChatRequest(BaseModel):
     session_id: str
     message: str
+    tts_enabled: bool = False
 
 @app.on_event("startup")
 def startup_event():
@@ -124,7 +125,8 @@ async def chat_endpoint(request: ChatRequest):
     """
     result = await agent_service.process_message(
         session_id=request.session_id,
-        text=request.message
+        text=request.message,
+        tts_enabled=request.tts_enabled
     )
     return result
 
