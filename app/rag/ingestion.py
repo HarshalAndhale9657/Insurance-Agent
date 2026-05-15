@@ -10,23 +10,32 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "../../chroma_db")
 
+ALLOWED_EXTENSIONS = {"pdf", "txt"}
+
+
 def get_embeddings():
     """
     Returns the HuggingFace embeddings model.
     """
     return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
+
 def load_document(uploaded_file):
     """
     Loads and processes an uploaded file (PDF or Text).
     Returns a list of Document objects.
     """
-    with tempfile.NamedTemporaryFile(delete=False, suffix=f".{uploaded_file.name.split('.')[-1]}") as tmp_file:
+    # Validate file extension
+    file_extension = uploaded_file.name.split('.')[-1].lower()
+    if file_extension not in ALLOWED_EXTENSIONS:
+        raise ValueError("Unsupported file type.")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_extension}") as tmp_file:
         tmp_file.write(uploaded_file.getvalue())
         tmp_path = tmp_file.name
 
     try:
-        if uploaded_file.name.endswith(".pdf"):
+        if file_extension == "pdf":
             loader = PyPDFLoader(tmp_path)
         else:
             loader = TextLoader(tmp_path)
@@ -35,6 +44,7 @@ def load_document(uploaded_file):
         return docs
     finally:
         os.remove(tmp_path)
+
 
 def split_documents(docs):
     """
@@ -46,6 +56,7 @@ def split_documents(docs):
         length_function=len
     )
     return text_splitter.split_documents(docs)
+
 
 def index_documents(chunks):
     """
